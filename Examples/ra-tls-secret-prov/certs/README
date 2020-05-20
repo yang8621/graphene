@@ -1,0 +1,8 @@
+This directory contains pre-generated example certificates, copied from mbedTLS
+for simplicity. In particular:
+
+- `test-ca-sha256.crt` -- RSA SHA256 root CA certificate in PEM format. Loaded
+  in client (attester) so that client can verify the server's certificate.
+- `server2-sha256.crt` -- RSA SHA256 leaf server certificate in PEM format.
+  Loaded in server (verifier) and sent to the client.
+- `server2.key` -- RSA private key in PEM format. Loaded in server (verifier).

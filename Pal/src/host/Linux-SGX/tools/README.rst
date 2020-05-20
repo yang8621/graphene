@@ -238,3 +238,77 @@ applications. Not thread-safe.
 The library uses the same SGX-specific environment variables as ``ra_tls_verify_epid.so`` and
 ignores the EPID-specific environment variables. The library expects all the DCAP infrastructure
 to be installed and working correctly on the host.
+
+
+Secret Provisioning Libraries
+-----------------------------
+
+Secret Provisioning libraries are reference implementations for the flows to provision secrets from
+a trusted machine (server, verifier) to an enclavized application (client, attester). These
+libraries rely heavily on RA-TLS and re-use the same configuration parameters as listed above.
+
+Conceptually, a client application and a trusted server establish a secure RA-TLS communication
+channel via TLS mutual attestation. The server sends its normal X.509 certificate for verification
+by client, whereas the client sends its RA-TLS X.509 certificate with SGX-related information for
+verification by server. After this mutual attestation, the trust is established, and the server
+provisions the secrets to the client. The established TLS channel may be either closed after
+provisioning these initial secrets or may be further used by both parties for continued secure
+communication.
+
+Secret Provisioning is shipped as three libraries: ``secret_prov_attest.so``, EPID-based
+``secret_prov_verify_epid.so`` and ECDSA-based (DCAP) ``secret_prov_verify_dcap.so``.
+
+``secret_prov_attest.so``
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This library is typically linked into client (enclavized) applications. The application calls into
+this library to initiate the RA-TLS session with the remote trusted server for secret provisioning.
+Alternatively, the library runs before application's entry point, initializes the RA-TLS session,
+receives the secret and stashes it in an environment variable. In both cases, the application may
+call into the library to continue secure communication with the trusted server and/or to retrieve
+the secret. This library is not thread-safe.
+
+The library expects the same configuration information in the manifest and environment variables as
+RA-TLS. In addition, the library uses the following environment variables if available:
+
+- ``SECRET_PROVISION_CONSTRUCTOR`` (optional) -- set it to ``1/true/TRUE`` to initialize the
+  RA-TLS session and retrieve the secret before the application starts. By default, it is not set,
+  thus secret provisioning must be explicitly requested by the application.
+
+- ``SECRET_PROVISION_SERVERS`` (optional) -- a comma, semicolon or space separated list of server
+  names with ports to connect to for secret provisioning. Example:
+  ``localhost:4433;trusted-server:443``. If not set, defaults to ``localhost:4433``.
+
+The secret may be retrieved by the application in two ways:
+
+- Reading ``SECRET_PROVISION_SECRET_STRING`` environment variable. It is updated only if
+  ``SECRET_PROVISION_CONSTRUCTOR`` is set to true and if the secret is representable as a string of
+  maximum 4K characters.
+- Calling ``secret_provision_get()`` function. It always updates its pointer argument to the secret
+  (or ``NULL`` if secret provisioning failed).
+
+``secret_prov_verify_epid.so``
+^^^^^^^^^^^^^^^^^^^^
+
+This library is typically linked into a (normal non-enclavized) secret-provisioning server service.
+The server calls into this library to listen for clients in an endless loop. When a new client
+connects, the server initiates an RA-TLS session with the client, verifies the RA-TLS X.509
+certificate of the client, and provisions the secret to the client if verification is successful.
+The server can register a callback to continue secure communication with the client (instead of
+simply closing the session after the first secret is sent to the client).  This library is not
+thread-safe. This library uses EPID-based RA-TLS flows underneath.
+
+The library expects the same configuration information in the manifest and environment variables as
+RA-TLS. In addition, the library uses the following environment variables if available:
+
+- ``SECRET_PROVISION_LISTENING_PORT`` (optional) -- the listening port. Defaults to ``4433``.
+
+``secret_prov_verify_dcap.so``
+^^^^^^^^^^^^^^^^^^^^
+
+Similarly to ``secret_prov_verify_epid.so``, this library is used in secret-provisioning servers.
+The only difference is that this library uses ECDSA/DCAP-based RA-TLS flows underneath.
+
+The library uses the same SGX-specific environment variables as ``secret_prov_verify_epid.so`` and
+ignores the EPID-specific environment variables. The library expects all the DCAP infrastructure
+to be installed and working correctly on the host.
